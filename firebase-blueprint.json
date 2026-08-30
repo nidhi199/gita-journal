@@ -1,0 +1,29 @@
+{
+  "entities": {
+    "UserProfile": {
+      "collection": "users",
+      "fields": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "lastActive": { "type": "string" }
+      }
+    },
+    "JournalEntry": {
+      "collection": "users/{userId}/entries",
+      "fields": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "mood": { "type": "string" },
+        "theme": { "type": "string" },
+        "summary": { "type": "string" },
+        "conversation": { "type": "array" },
+        "verse": { "type": "object" },
+        "guidance": { "type": "string" },
+        "patternRecallNote": { "type": "string" }
+      }
+    }
+  }
+}
