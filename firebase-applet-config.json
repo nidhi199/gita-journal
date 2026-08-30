@@ -1,12 +1,12 @@
-{
-  "projectId": "student-risk-assistant",
-  "appId": "1:739262828516:web:1cde5647575f8e64e541f1",
-  "apiKey": "AIzaSyDmBAw6qsHk_44VFI7wEU1e-DhYnIF0Qgc",
-  "authDomain": "student-risk-assistant.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-e19b0ebe-448a-438b-a5ed-c1937ff4ff36",
-  "storageBucket": "student-risk-assistant.firebasestorage.app",
-  "messagingSenderId": "739262828516",
+﻿{
+  "projectId": "gita-mindfulness",
+  "appId": "1:118305566357:web:a714885485b9b880b9f59c",
+  "apiKey": "AIzaSyA1w1_WqSpCJrUl6cR5ZIA2mGxL7gW6HxU",
+  "authDomain": "gita-mindfulness.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "gita-mindfulness.firebasestorage.app",
+  "messagingSenderId": "118305566357",
   "measurementId": "",
-  "oAuthClientId": "739262828516-5a5gm0s9j9abm3nhm6ou9sq85cocdlid.apps.googleusercontent.com",
+  "oAuthClientId": "PASTE_YOUR_OAUTH_CLIENT_ID_HERE",
   "recaptchaSiteKey": ""
 }
