@@ -1,17 +1,22 @@
 {
   "entities": {
     "UserProfile": {
-      "collection": "users",
-      "fields": {
+      "title": "UserProfile",
+      "description": "User profile information and reminder preferences",
+      "type": "object",
+      "properties": {
         "email": { "type": "string" },
         "displayName": { "type": "string" },
         "createdAt": { "type": "string" },
-        "lastActive": { "type": "string" }
+        "lastActive": { "type": "string" },
+        "reminderSettings": { "type": "object" }
       }
     },
     "JournalEntry": {
-      "collection": "users/{userId}/entries",
-      "fields": {
+      "title": "JournalEntry",
+      "description": "Private user journal entry and Gita reflection",
+      "type": "object",
+      "properties": {
         "title": { "type": "string" },
         "content": { "type": "string" },
         "createdAt": { "type": "string" },
@@ -22,8 +27,21 @@
         "conversation": { "type": "array" },
         "verse": { "type": "object" },
         "guidance": { "type": "string" },
-        "patternRecallNote": { "type": "string" }
-      }
+        "patternRecallNote": { "type": "string" },
+        "location": { "type": "object" }
+      },
+      "required": ["title", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User document containing profile and settings"
+    },
+    "/users/{userId}/entries/{entryId}": {
+      "schema": "JournalEntry",
+      "description": "User private journal entries"
     }
   }
 }
+

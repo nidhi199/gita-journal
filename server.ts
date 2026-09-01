@@ -53,7 +53,14 @@ function getGeminiClient(): GoogleGenAI {
     if (!apiKey) {
       console.warn('GEMINI_API_KEY is not set in environment. Gemini features will return fallback answers.');
     }
-    aiClient = new GoogleGenAI({ apiKey: apiKey || 'dummy-key-for-init' });
+    aiClient = new GoogleGenAI({ 
+      apiKey: apiKey || 'dummy-key-for-init',
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build'
+        }
+      }
+    });
   }
   return aiClient;
 }
@@ -108,7 +115,11 @@ Question: Does this text express acute suicidal ideation, explicit intentions of
 Reply with strictly ONE word: either CRISIS_DETECTED or SAFE.`;
 
     const result = await callGeminiWithFallback(prompt, 'You are an objective safety triage monitor.');
-    return result.toUpperCase().includes('CRISIS_DETECTED');
+    const upper = result.toUpperCase();
+    if (upper.includes('NO CRISIS') || upper.includes('NOT CRISIS') || upper.includes('SAFE')) {
+      return false;
+    }
+    return upper.includes('CRISIS_DETECTED');
   } catch (err) {
     return false;
   }
@@ -353,7 +364,7 @@ app.get('/api/verses/distribution', (req, res) => {
 app.post('/api/reflect', async (req, res) => {
   try {
     const body: ReflectionRequest = req.body || {};
-    const { currentEntryText, conversationHistory = [], pastSummaries = [], directGuidanceRequested } = body;
+    const { currentEntryText, conversationHistory = [], pastSummaries = [], directGuidanceRequested, forceSocratic } = body;
 
     if (!currentEntryText || typeof currentEntryText !== 'string' || currentEntryText.trim().length === 0) {
       return res.status(400).json({ error: 'Journal entry text is required.' });
@@ -388,7 +399,7 @@ app.post('/api/reflect', async (req, res) => {
     // STEP 3: SOCRATIC FLOW INQUIRY
     // =========================================================================
     const isFirstInquiry = conversationHistory.length === 0;
-    const shouldAskSocratic = !directGuidanceRequested && isFirstInquiry;
+    const shouldAskSocratic = !directGuidanceRequested && (isFirstInquiry || forceSocratic);
 
     if (shouldAskSocratic) {
       const socraticQuestion = await generateSocraticQuestion(trimmedText, conversationHistory);
@@ -407,12 +418,35 @@ app.post('/api/reflect', async (req, res) => {
     const { verse: matchedVerse, detectedTheme, detectedMood, themeCategory } = await classifyThemeAndSelectVerse(trimmedText, conversationHistory, pastSummaries);
     const { guidance, theme, mood } = await generateGroundedGuidance(trimmedText, conversationHistory, matchedVerse, detectedTheme, detectedMood);
 
+    // Compute mood rating heuristic (1-10) based on detected mood/theme
+    let detectedMoodRating = body.userSelectedRating || 6;
+    if (!body.userSelectedRating) {
+      const lowerMood = (mood || '').toLowerCase();
+      const lowerTheme = (theme || '').toLowerCase();
+      if (lowerMood.includes('despair') || lowerMood.includes('grief') || lowerMood.includes('lowest') || lowerTheme.includes('loss')) {
+        detectedMoodRating = 2;
+      } else if (lowerMood.includes('overwhelm') || lowerMood.includes('burden') || lowerMood.includes('anxious') || lowerMood.includes('frustrat') || lowerMood.includes('anger')) {
+        detectedMoodRating = 3;
+      } else if (lowerMood.includes('doubt') || lowerMood.includes('confused') || lowerMood.includes('restless')) {
+        detectedMoodRating = 4;
+      } else if (lowerMood.includes('reflective') || lowerMood.includes('contemplat') || lowerMood.includes('seeking')) {
+        detectedMoodRating = 6;
+      } else if (lowerMood.includes('resolute') || lowerMood.includes('steady') || lowerMood.includes('focused')) {
+        detectedMoodRating = 8;
+      } else if (lowerMood.includes('serene') || lowerMood.includes('peace') || lowerMood.includes('calm') || lowerMood.includes('equanim')) {
+        detectedMoodRating = 9;
+      } else if (lowerMood.includes('joy') || lowerMood.includes('grateful') || lowerMood.includes('bliss') || lowerMood.includes('devotion')) {
+        detectedMoodRating = 10;
+      }
+    }
+
     const response: ReflectionResponse = {
       mode: 'grounded_guidance',
       matchedVerse,
       guidance,
       detectedTheme: theme,
-      detectedMood: mood,
+      detectedMood: body.userSelectedMood || mood,
+      detectedMoodRating,
       patternRecallNote
     };
 

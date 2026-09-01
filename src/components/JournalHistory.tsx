@@ -14,7 +14,8 @@ import {
   HeartHandshake,
   MessageSquareQuote,
   Eye,
-  Filter
+  Filter,
+  MapPin
 } from 'lucide-react';
 import { JournalEntry } from '../types';
 import { INDIA_CRISIS_RESOURCES } from '../data/crisisResources';
@@ -50,7 +51,8 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
       (e.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (e.content || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (e.guidance || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (e.verse?.citation || '').toLowerCase().includes(searchQuery.toLowerCase());
+      (e.verse?.citation || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (e.location?.placeName || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesTheme = selectedTheme === 'all' || e.theme === selectedTheme;
     return matchesSearch && matchesTheme;
@@ -272,9 +274,24 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
                     })}
                   </span>
                 </div>
+
+                {currentEntry.location?.placeName && (
+                  <>
+                    <span className="text-zinc-600">•</span>
+                    <div className="flex items-center space-x-1 text-emerald-400 font-medium">
+                      <MapPin className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                      <span className="truncate max-w-[200px]">{currentEntry.location.placeName}</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="flex items-center space-x-2">
+                {currentEntry.mood && (
+                  <span className="rounded-full border border-zinc-700 bg-zinc-800/80 px-2.5 py-0.5 text-[11px] font-medium text-amber-200">
+                    Mood: {currentEntry.mood} {currentEntry.moodRating ? `(${currentEntry.moodRating}/10)` : ''}
+                  </span>
+                )}
                 {currentEntry.theme && (
                   <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${
                     currentEntry.isCrisisDetected 
@@ -451,14 +468,27 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
               <div>
                 {/* Date & Theme & Delete */}
                 <div className="flex items-center justify-between text-xs text-zinc-400 mb-2">
-                  <span>
-                    {new Date(entry.createdAt).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
-                  </span>
+                  <div className="flex items-center space-x-1.5 truncate">
+                    <span>
+                      {new Date(entry.createdAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </span>
+                    {entry.location?.placeName && (
+                      <span className="flex items-center space-x-0.5 text-[11px] text-emerald-400 truncate max-w-[90px]" title={entry.location.placeName}>
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{entry.location.placeName}</span>
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center space-x-1.5">
+                    {entry.mood && (
+                      <span className="rounded-full bg-zinc-800 border border-zinc-700/80 px-2 py-0.5 text-[10px] text-zinc-300">
+                        {entry.mood} {entry.moodRating ? `• ${entry.moodRating}/10` : ''}
+                      </span>
+                    )}
                     {entry.theme && (
                       <span className={`rounded-full border px-2 py-0.5 text-[10px] truncate max-w-[110px] ${
                         entry.isCrisisDetected 

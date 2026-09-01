@@ -16,17 +16,30 @@ import {
   HeartHandshake,
   Mic,
   MicOff,
-  Radio
+  Radio,
+  Heart,
+  Smile,
+  SlidersHorizontal,
+  Trash2,
+  Wind,
+  Lightbulb,
+  Maximize2,
+  Minimize2,
+  MapPin,
+  MapPinOff
 } from 'lucide-react';
-import { JournalEntry, ConversationMessage, PastEntrySummary, ReflectionResponse } from '../types';
+import { JournalEntry, ConversationMessage, PastEntrySummary, ReflectionResponse, JournalLocation } from '../types';
 import { GitaVerse } from '../data/gitaVerses';
+import { MOOD_ARCHETYPES, getMoodArchetype, getMoodRatingLabel } from '../data/moodArchetypes';
 import { INDIA_CRISIS_RESOURCES } from '../data/crisisResources';
 import { CrisisSafeguardCard } from './CrisisSafeguardCard';
 import { ListenButton } from './ListenButton';
+import { PranayamaModal } from './PranayamaModal';
+import { GuidedPromptsModal } from './GuidedPromptsModal';
+import { GeotagModal } from './GeotagModal';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { saveJournalEntry } from '../lib/firebase';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
-import { Trash2 } from 'lucide-react';
 
 interface JournalEditorProps {
   userId: string;
@@ -58,6 +71,8 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   const [guidance, setGuidance] = useState<string | null>(initialEntry?.guidance || null);
   const [patternRecallNote, setPatternRecallNote] = useState<string | null>(initialEntry?.patternRecallNote || null);
   const [mood, setMood] = useState<string | undefined>(initialEntry?.mood);
+  const [moodRating, setMoodRating] = useState<number>(initialEntry?.moodRating || 6);
+  const [showMoodPicker, setShowMoodPicker] = useState<boolean>(false);
   const [theme, setTheme] = useState<string | undefined>(initialEntry?.theme);
   const [isCrisisDetected, setIsCrisisDetected] = useState<boolean>(Boolean(initialEntry?.isCrisisDetected));
   
@@ -67,6 +82,11 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [socraticAnswer, setSocraticAnswer] = useState<string>('');
+  const [showPranayamaModal, setShowPranayamaModal] = useState<boolean>(false);
+  const [showPromptsModal, setShowPromptsModal] = useState<boolean>(false);
+  const [showGeotagModal, setShowGeotagModal] = useState<boolean>(false);
+  const [location, setLocation] = useState<JournalLocation | null>(initialEntry?.location || null);
+  const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
   const [crisisInfo, setCrisisInfo] = useState<ReflectionResponse | null>(() => {
     if (initialEntry?.isCrisisDetected) {
       return {
@@ -116,9 +136,12 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
     toggleListening();
   };
 
-  // Sync if initialEntry prop changes (e.g. when opened from history)
+  const prevEntryIdRef = useRef<string | undefined>(initialEntry?.id);
+
+  // Sync if initialEntry prop changes (e.g. when opened from history or new entry)
   useEffect(() => {
-    if (initialEntry) {
+    if (initialEntry && initialEntry.id !== prevEntryIdRef.current) {
+      prevEntryIdRef.current = initialEntry.id;
       setEntryId(initialEntry.id);
       setTitle(initialEntry.title || '');
       setContent(initialEntry.content || '');
@@ -128,6 +151,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       setGuidance(initialEntry.guidance || null);
       setPatternRecallNote(initialEntry.patternRecallNote || null);
       setMood(initialEntry.mood);
+      setMoodRating(initialEntry.moodRating || 6);
       setTheme(initialEntry.theme);
       setIsCrisisDetected(Boolean(initialEntry.isCrisisDetected));
       
@@ -142,6 +166,21 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       } else {
         setCrisisInfo(null);
       }
+    } else if (!initialEntry && prevEntryIdRef.current !== undefined) {
+      prevEntryIdRef.current = undefined;
+      setEntryId(`entry-${Date.now()}`);
+      setTitle('');
+      setContent('');
+      setCreatedAt(new Date().toISOString());
+      setConversation([]);
+      setVerse(null);
+      setGuidance(null);
+      setPatternRecallNote(null);
+      setMood(undefined);
+      setMoodRating(6);
+      setTheme(undefined);
+      setIsCrisisDetected(false);
+      setCrisisInfo(null);
     }
   }, [initialEntry]);
 
@@ -159,7 +198,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   });
 
   // Call server /api/reflect
-  const handleReflect = async (directGuidance: boolean = false, additionalNote?: string) => {
+  const handleReflect = async (directGuidance: boolean = false, additionalNote?: string, forceSocratic: boolean = false) => {
     if (!content.trim()) {
       setErrorMessage('Please write or speak a thought or situation in your journal first.');
       return;
@@ -188,7 +227,10 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           currentEntryText: content,
           conversationHistory: updatedConversation.map(m => ({ role: m.role, text: m.text })),
           pastSummaries,
-          directGuidanceRequested: directGuidance
+          directGuidanceRequested: directGuidance,
+          forceSocratic,
+          userSelectedMood: mood,
+          userSelectedRating: moodRating
         })
       });
 
@@ -198,9 +240,14 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       }
 
       const data: ReflectionResponse = await response.json();
+      const finalConversation = [...updatedConversation];
 
       if (data.patternRecallNote) {
         setPatternRecallNote(data.patternRecallNote);
+      }
+
+      if (data.detectedMoodRating) {
+        setMoodRating(data.detectedMoodRating);
       }
 
       if (data.mode === 'crisis') {
@@ -213,6 +260,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         setVerse(null);
         setTheme('Compassionate Care & Crisis Support');
         setMood('Acute Distress');
+        setMoodRating(1);
 
         const newAssistantMsg: ConversationMessage = {
           id: `msg-crisis-${Date.now()}`,
@@ -221,10 +269,13 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           timestamp: new Date().toISOString(),
           isClarifyingQuestion: false
         };
-        setConversation(prev => [...prev, newAssistantMsg]);
+        finalConversation.push(newAssistantMsg);
+        setConversation(finalConversation);
       } else if (data.mode === 'socratic_question') {
         setIsCrisisDetected(false);
         setCrisisInfo(null);
+        setVerse(null);
+        setGuidance(null);
         if (data.socraticQuestion) {
           const newAssistantMsg: ConversationMessage = {
             id: `msg-guide-${Date.now()}`,
@@ -233,7 +284,8 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
             timestamp: new Date().toISOString(),
             isClarifyingQuestion: true
           };
-          setConversation(prev => [...prev, newAssistantMsg]);
+          finalConversation.push(newAssistantMsg);
+          setConversation(finalConversation);
         }
       } else if (data.mode === 'grounded_guidance') {
         setIsCrisisDetected(false);
@@ -242,6 +294,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         if (data.guidance) setGuidance(data.guidance);
         if (data.detectedTheme) setTheme(data.detectedTheme);
         if (data.detectedMood) setMood(data.detectedMood);
+        if (data.detectedMoodRating) setMoodRating(data.detectedMoodRating);
 
         const newAssistantMsg: ConversationMessage = {
           id: `msg-guidance-${Date.now()}`,
@@ -250,11 +303,12 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           timestamp: new Date().toISOString(),
           isClarifyingQuestion: false
         };
-        setConversation(prev => [...prev, newAssistantMsg]);
+        finalConversation.push(newAssistantMsg);
+        setConversation(finalConversation);
       }
 
-      // Auto-save progress
-      await handleSaveInternal(false, data);
+      // Auto-save progress passing updated conversation array directly
+      await handleSaveInternal(false, data, finalConversation);
     } catch (err: any) {
       console.error('Reflection error:', err);
       setErrorMessage(err.message || 'Unable to connect to reflective guide.');
@@ -266,7 +320,8 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   // Save to Firestore
   const handleSaveInternal = async (
     explicitUserSave: boolean = true, 
-    latestReflection?: ReflectionResponse
+    latestReflection?: ReflectionResponse,
+    currentConversationOverride?: ConversationMessage[]
   ) => {
     if (!content.trim()) return;
 
@@ -276,12 +331,18 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
     }
 
     try {
-      const activeVerse = latestReflection?.matchedVerse !== undefined ? latestReflection.matchedVerse : verse;
-      const activeGuidance = latestReflection?.guidance !== undefined ? latestReflection.guidance : guidance;
+      const activeVerse = latestReflection?.matchedVerse !== undefined 
+        ? latestReflection.matchedVerse 
+        : (latestReflection?.mode === 'socratic_question' ? null : verse);
+      const activeGuidance = latestReflection?.guidance !== undefined 
+        ? latestReflection.guidance 
+        : (latestReflection?.mode === 'socratic_question' ? null : guidance);
       const activeTheme = latestReflection?.detectedTheme !== undefined ? latestReflection.detectedTheme : theme;
       const activeMood = latestReflection?.detectedMood !== undefined ? latestReflection.detectedMood : mood;
+      const activeMoodRating = latestReflection?.detectedMoodRating !== undefined ? latestReflection.detectedMoodRating : moodRating;
       const activePatternRecall = latestReflection?.patternRecallNote !== undefined ? latestReflection.patternRecallNote : patternRecallNote;
-      const activeCrisis = latestReflection?.mode === 'crisis' ? true : isCrisisDetected;
+      const activeCrisis = latestReflection?.mode === 'crisis' ? true : (latestReflection?.mode === 'socratic_question' ? false : isCrisisDetected);
+      const activeConversation = currentConversationOverride !== undefined ? currentConversationOverride : conversation;
 
       const entryToSave: JournalEntry = {
         id: entryId,
@@ -291,13 +352,15 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         createdAt,
         updatedAt: new Date().toISOString(),
         mood: activeMood,
+        moodRating: activeMoodRating,
         theme: activeTheme,
         summary: `${activeTheme || 'Reflection'}: ${content.slice(0, 100)}`,
-        conversation,
+        conversation: activeConversation,
         verse: activeVerse,
         guidance: activeGuidance,
         patternRecallNote: activePatternRecall,
         isCrisisDetected: activeCrisis,
+        location: location,
         status: 'saved'
       };
 
@@ -356,12 +419,12 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       )}
 
       {/* Main Grid: Left side is Journal Entry (Visual Focus), Right side is Margin Notes & Guidance */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+      <div className={`grid grid-cols-1 gap-8 transition-all ${isFocusMode ? 'max-w-4xl mx-auto' : 'lg:grid-cols-12'}`}>
         
         {/* ========================================================================= */}
         {/* LEFT COLUMN: THE JOURNAL ENTRY (Dominant Visual Focus, 7 cols on lg)     */}
         {/* ========================================================================= */}
-        <div className="lg:col-span-7 flex flex-col space-y-4">
+        <div className={`flex flex-col space-y-4 ${isFocusMode ? 'w-full' : 'lg:col-span-7'}`}>
           
           {/* Dated Header & Entry Canvas */}
           <div className="rounded-xl border border-zinc-800 bg-[#121316] p-6 shadow-md shadow-black/40 relative">
@@ -375,9 +438,77 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                 <span>{formattedTime}</span>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Guided Prompts Button */}
+                <button
+                  id="editor-guided-prompts-btn"
+                  type="button"
+                  onClick={() => setShowPromptsModal(true)}
+                  className="flex items-center space-x-1.5 rounded-lg border border-amber-500/30 bg-amber-950/20 px-2.5 py-1 text-xs font-medium text-amber-300 hover:bg-amber-950/40 hover:border-amber-500/50 transition-colors cursor-pointer"
+                  title="Open guided reflection templates & today's Shloka"
+                >
+                  <Lightbulb className="h-3.5 w-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">Prompts & Shloka</span>
+                  <span className="sm:hidden">Prompts</span>
+                </button>
+
+                {/* Pranayama Centering Button */}
+                <button
+                  id="editor-pranayama-btn"
+                  type="button"
+                  onClick={() => setShowPranayamaModal(true)}
+                  className="flex items-center space-x-1.5 rounded-lg border border-teal-500/30 bg-teal-950/20 px-2.5 py-1 text-xs font-medium text-teal-300 hover:bg-teal-950/40 hover:border-teal-500/50 transition-colors cursor-pointer"
+                  title="1-Minute Centering Breathwork (Pranayama)"
+                >
+                  <Wind className="h-3.5 w-3.5 text-teal-400" />
+                  <span className="hidden sm:inline">Center Breath</span>
+                  <span className="sm:hidden">Breath</span>
+                </button>
+
+                {/* Geotag Sanctuary Button */}
+                {location ? (
+                  <button
+                    id="editor-geotag-btn"
+                    type="button"
+                    onClick={() => setShowGeotagModal(true)}
+                    className="flex items-center space-x-1.5 rounded-lg border border-emerald-500/40 bg-emerald-950/30 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:bg-emerald-950/50 hover:border-emerald-500/60 transition-colors cursor-pointer"
+                    title={`Geotagged: ${location.placeName || 'Attached'}. Click to modify or remove.`}
+                  >
+                    <MapPin className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                    <span className="max-w-[120px] truncate">{location.placeName || 'Location'}</span>
+                  </button>
+                ) : (
+                  <button
+                    id="editor-geotag-btn"
+                    type="button"
+                    onClick={() => setShowGeotagModal(true)}
+                    className="flex items-center space-x-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/80 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-zinc-100 hover:bg-zinc-750 transition-colors cursor-pointer"
+                    title="Attach sanctuary location or GPS coordinates to this reflection"
+                  >
+                    <MapPin className="h-3.5 w-3.5 text-amber-400/80" />
+                    <span className="hidden sm:inline">Add Location</span>
+                    <span className="sm:hidden">Loc</span>
+                  </button>
+                )}
+
+                {/* Focus Mode Toggle */}
+                <button
+                  id="editor-focus-mode-btn"
+                  type="button"
+                  onClick={() => setIsFocusMode(!isFocusMode)}
+                  className={`flex items-center space-x-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                    isFocusMode 
+                      ? 'border-amber-400/60 bg-amber-500/20 text-amber-200' 
+                      : 'border-zinc-700/60 bg-zinc-800/80 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-750'
+                  }`}
+                  title={isFocusMode ? 'Exit Fullscreen Focus Mode' : 'Enter Distraction-Free Focus Mode'}
+                >
+                  {isFocusMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                  <span className="hidden md:inline">{isFocusMode ? 'Standard View' : 'Focus View'}</span>
+                </button>
+
                 {theme && (
-                  <div className={`flex items-center space-x-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${
+                  <div className={`hidden sm:flex items-center space-x-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${
                     isCrisisDetected 
                       ? 'border-rose-500/30 bg-rose-950/30 text-rose-300'
                       : 'border-amber-500/20 bg-amber-950/30 text-amber-300'
@@ -447,6 +578,93 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
               />
             </div>
 
+            {/* Feeling & Mood Tuning Bar */}
+            <div className="mt-2.5 rounded-lg border border-zinc-800/80 bg-zinc-900/40 p-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center space-x-2">
+                  <span className="flex items-center space-x-1 text-zinc-400 font-medium text-[11px]">
+                    <Heart className="h-3.5 w-3.5 text-rose-400" />
+                    <span>Feeling State:</span>
+                  </span>
+                  
+                  <span className="rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+                    {mood || 'Reflective'} ({moodRating}/10: {getMoodRatingLabel(moodRating)})
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowMoodPicker(!showMoodPicker)}
+                  className="flex items-center space-x-1 text-[11px] text-zinc-400 hover:text-amber-300 transition-colors"
+                >
+                  <SlidersHorizontal className="h-3 w-3" />
+                  <span>{showMoodPicker ? 'Hide Feeling Tuner' : 'Tune Feeling & Intensity'}</span>
+                </button>
+              </div>
+
+              {/* Expandable Feeling Tuner */}
+              {showMoodPicker && (
+                <div className="mt-3 pt-3 border-t border-zinc-800 space-y-3">
+                  {/* Preset Archetypes */}
+                  <div>
+                    <span className="block text-[10px] uppercase font-bold tracking-wider text-zinc-400 mb-1.5">
+                      Select Primary Feeling
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {MOOD_ARCHETYPES.map((arch) => (
+                        <button
+                          key={arch.id}
+                          type="button"
+                          onClick={() => {
+                            setMood(arch.label.split('&')[0].trim());
+                            setMoodRating(arch.defaultRating);
+                          }}
+                          className={`flex items-center space-x-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all ${
+                            mood === arch.label.split('&')[0].trim() || (mood && arch.id.includes(mood.toLowerCase()))
+                              ? 'border shadow-xs'
+                              : 'border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-zinc-200'
+                          }`}
+                          style={
+                            mood === arch.label.split('&')[0].trim() || (mood && arch.id.includes(mood.toLowerCase()))
+                              ? {
+                                  backgroundColor: arch.bgLight,
+                                  borderColor: `${arch.color}60`,
+                                  color: arch.color
+                                }
+                              : undefined
+                          }
+                        >
+                          <span>{arch.icon}</span>
+                          <span>{arch.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 1-10 Mood Rating Slider (Where you felt lowest, happiest) */}
+                  <div className="pt-2">
+                    <div className="flex items-center justify-between text-[11px] mb-1">
+                      <span className="text-zinc-400 font-medium">Emotional Intensity / Peace Scale:</span>
+                      <span className="font-bold text-amber-300">{moodRating} / 10 — {getMoodRatingLabel(moodRating)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={10}
+                      value={moodRating}
+                      onChange={(e) => setMoodRating(parseInt(e.target.value, 10))}
+                      className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
+                    />
+                    <div className="flex justify-between text-[9px] text-zinc-400 mt-1">
+                      <span>1 (Lowest / Deepest Despair)</span>
+                      <span>5 (Equanimous / Inquiring)</span>
+                      <span>10 (Happiest / Sublime Peace)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Live Dictation Banner if actively listening */}
             {isListening && (
               <div className="mt-2 flex items-center justify-between rounded-md bg-rose-950/30 border border-rose-500/30 px-3 py-1.5 text-xs text-rose-200">
@@ -481,7 +699,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
               <div className="flex items-center space-x-2">
                 <button
                   id="socratic-reflect-btn"
-                  onClick={() => handleReflect(false)}
+                  onClick={() => handleReflect(false, undefined, true)}
                   disabled={isReflecting || !content.trim()}
                   className="flex items-center space-x-2 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3.5 py-2 text-xs sm:text-sm font-medium text-amber-200 transition-all hover:bg-amber-950/40 hover:border-amber-500/50 disabled:opacity-50"
                   title="Invite the Socratic guide to reflect and ask an inquiry question"
@@ -546,7 +764,8 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         {/* ========================================================================= */}
         {/* RIGHT COLUMN: MARGIN NOTES & SCRIPTURAL REFLECTIONS (5 cols on lg)        */}
         {/* ========================================================================= */}
-        <div className="lg:col-span-5 flex flex-col space-y-5">
+        {!isFocusMode && (
+          <div className="lg:col-span-5 flex flex-col space-y-5">
           
           {/* Header of Margin Space */}
           <div className="flex items-center justify-between text-xs tracking-wider uppercase text-zinc-400 font-medium px-1">
@@ -599,30 +818,93 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                   id="socratic-answer-input"
                   value={socraticAnswer}
                   onChange={(e) => setSocraticAnswer(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && socraticAnswer.trim() && !isReflecting) {
+                      e.preventDefault();
+                      handleReflect(false, socraticAnswer);
+                    }
+                  }}
                   rows={3}
-                  placeholder="Note your inner answer or feelings on this question..."
+                  placeholder="Note your inner answer or feelings on this question... (Press Cmd+Enter or Ctrl+Enter to send)"
                   className="w-full rounded-lg border border-zinc-700 bg-zinc-900/80 p-2.5 text-xs text-zinc-200 placeholder:text-zinc-400 focus:border-amber-500/50 focus:outline-none"
                 />
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <button
                     id="submit-socratic-reply-btn"
                     onClick={() => handleReflect(false, socraticAnswer)}
                     disabled={isReflecting || !socraticAnswer.trim()}
-                    className="flex items-center space-x-1.5 rounded-md bg-amber-500/20 border border-amber-500/30 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/30 disabled:opacity-50"
+                    className="flex items-center space-x-1.5 rounded-md bg-amber-500/20 border border-amber-500/30 px-3.5 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/30 disabled:opacity-50 transition-all cursor-pointer"
                   >
+                    {isReflecting ? (
+                      <RefreshCw className="h-3 w-3 animate-spin text-amber-300" />
+                    ) : (
+                      <Send className="h-3 w-3" />
+                    )}
                     <span>Send Reply</span>
-                    <Send className="h-3 w-3" />
                   </button>
 
                   <button
                     id="skip-to-verse-btn"
                     onClick={() => handleReflect(true)}
                     disabled={isReflecting}
-                    className="text-xs text-zinc-400 hover:text-zinc-200 underline underline-offset-2"
+                    className="text-xs text-zinc-400 hover:text-zinc-200 underline underline-offset-2 transition-colors cursor-pointer"
                   >
                     Proceed to Gita Verse & Guidance →
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Active AI Analysis Loading Indicator in Margin */}
+          {isReflecting && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-950/10 p-5 text-center shadow-sm">
+              <div className="flex items-center justify-center space-x-2 text-amber-300 mb-2">
+                <RefreshCw className="h-4 w-4 animate-spin text-amber-400" />
+                <span className="font-classical text-xs tracking-wider uppercase">Contemplating Wisdom...</span>
+              </div>
+              <p className="font-serif-journal text-xs italic text-zinc-400 leading-relaxed">
+                Listening closely to your words and consulting the Bhagavad Gita for grounded insight...
+              </p>
+            </div>
+          )}
+
+          {/* Dialogue History of Prior Inquiries & Answers (if any exist) */}
+          {conversation.length > 0 && !isCrisisDetected && !crisisInfo && (
+            <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-4 shadow-sm space-y-3">
+              <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-400 pb-2 border-b border-zinc-800">
+                <div className="flex items-center space-x-1.5">
+                  <Compass className="h-3.5 w-3.5 text-amber-400/80" />
+                  <span>Inquiry Journey</span>
+                </div>
+                <span className="text-[10px] text-zinc-400 font-mono">
+                  {conversation.length} exchange{conversation.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                {conversation.map((msg, idx) => (
+                  <div
+                    key={msg.id || idx}
+                    className={`rounded-lg p-2.5 text-xs ${
+                      msg.role === 'assistant'
+                        ? 'bg-zinc-800/50 border border-amber-500/20 text-zinc-300'
+                        : 'bg-amber-950/20 border border-amber-500/30 text-amber-200/90 ml-2'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider mb-1 text-zinc-400">
+                      <span>{msg.role === 'assistant' ? (msg.isClarifyingQuestion ? '🧭 Socratic Guide' : '📜 Gita Insight') : '✍️ Your Reflection'}</span>
+                      {msg.timestamp && (
+                        <span className="text-[9px] text-zinc-400">
+                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
+                    <p className="font-serif-journal leading-relaxed whitespace-pre-line">
+                      {msg.text}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -714,9 +996,48 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
             </div>
           )}
 
-        </div>
+          </div>
+        )}
 
       </div>
+
+      {/* Pranayama Breathwork Centering Modal */}
+      {showPranayamaModal && (
+        <PranayamaModal
+          isOpen={showPranayamaModal}
+          onClose={() => setShowPranayamaModal(false)}
+        />
+      )}
+
+      {/* Guided Prompts & Daily Shloka Modal */}
+      {showPromptsModal && (
+        <GuidedPromptsModal
+          isOpen={showPromptsModal}
+          onClose={() => setShowPromptsModal(false)}
+          onSelectPrompt={(selected) => {
+            if (!title) setTitle(selected.title);
+            if (content.trim()) {
+              setContent((prev) => prev + '\n\n' + selected.starterText);
+            } else {
+              setContent(selected.starterText);
+            }
+            if (selected.verse) {
+              setVerse(selected.verse);
+            }
+            if (selected.suggestedMood) {
+              setMood(selected.suggestedMood);
+            }
+          }}
+        />
+      )}
+
+      {/* Geotag Reflection Sanctuary Modal */}
+      <GeotagModal
+        isOpen={showGeotagModal}
+        onClose={() => setShowGeotagModal(false)}
+        currentLocation={location}
+        onSaveLocation={(newLoc) => setLocation(newLoc)}
+      />
 
       {/* In-App Delete Confirmation Dialog (Safe against iframe window.confirm blocks) */}
       {initialEntry && (

@@ -1,4 +1,4 @@
-﻿{
+{
   "projectId": "gita-mindfulness",
   "appId": "1:118305566357:web:a714885485b9b880b9f59c",
   "apiKey": "AIzaSyA1w1_WqSpCJrUl6cR5ZIA2mGxL7gW6HxU",
@@ -7,6 +7,6 @@
   "storageBucket": "gita-mindfulness.firebasestorage.app",
   "messagingSenderId": "118305566357",
   "measurementId": "",
-  "oAuthClientId": "PASTE_YOUR_OAUTH_CLIENT_ID_HERE",
+  "oAuthClientId": "REPLACE_THIS_VALUE",
   "recaptchaSiteKey": ""
 }

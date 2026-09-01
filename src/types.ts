@@ -8,6 +8,16 @@ export interface ConversationMessage {
   isClarifyingQuestion?: boolean;
 }
 
+export interface JournalLocation {
+  latitude: number;
+  longitude: number;
+  placeName?: string;
+  city?: string;
+  region?: string;
+  country?: string;
+  accuracy?: number;
+}
+
 export interface JournalEntry {
   id: string;
   userId: string;
@@ -16,6 +26,7 @@ export interface JournalEntry {
   createdAt: string; // ISO 8601 string
   updatedAt: string;
   mood?: string;
+  moodRating?: number; // 1-10 scale (1 = lowest/distressed, 5 = balanced/reflective, 10 = happiest/sublime peace)
   theme?: string;
   themeCategory?: ThemeCategory;
   summary?: string;
@@ -24,7 +35,16 @@ export interface JournalEntry {
   guidance?: string | null;
   patternRecallNote?: string | null;
   isCrisisDetected?: boolean;
+  location?: JournalLocation | null;
   status: 'draft' | 'saved';
+}
+
+export interface ReminderSettings {
+  enabled: boolean;
+  time: string; // "07:00", "20:30" etc.
+  browserNotificationsEnabled: boolean;
+  customMessage?: string;
+  lastNotifiedDate?: string; // YYYY-MM-DD
 }
 
 export interface PastEntrySummary {
@@ -36,6 +56,9 @@ export interface PastEntrySummary {
   summary?: string;
   verseId?: string;
   verseCitation?: string;
+  mood?: string;
+  moodRating?: number;
+  location?: JournalLocation | null;
 }
 
 export interface ReflectionRequest {
@@ -43,6 +66,9 @@ export interface ReflectionRequest {
   conversationHistory: Array<{ role: 'user' | 'assistant'; text: string }>;
   pastSummaries: PastEntrySummary[];
   directGuidanceRequested: boolean;
+  forceSocratic?: boolean;
+  userSelectedMood?: string;
+  userSelectedRating?: number;
 }
 
 export interface CrisisResource {
@@ -59,6 +85,19 @@ export interface ReflectionResponse {
   guidance?: string;
   detectedTheme?: string;
   detectedMood?: string;
+  detectedMoodRating?: number;
   patternRecallNote?: string;
   crisisResources?: CrisisResource[];
+}
+
+export interface MoodArchetype {
+  id: string;
+  label: string;
+  sanskritTerm: string;
+  guna: 'sattva' | 'rajas' | 'tamas';
+  defaultRating: number;
+  icon?: string;
+  color: string;
+  bgLight: string;
+  description: string;
 }

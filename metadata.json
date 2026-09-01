@@ -1,6 +1,6 @@
 {
   "name": "Gita Journal",
   "description": "A private, contemplative journal grounded in the Bhagavad Gita and guided by reflective Socratic inquiry.",
-  "requestFramePermissions": ["microphone"],
+  "requestFramePermissions": ["microphone", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

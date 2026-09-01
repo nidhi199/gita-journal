@@ -1,30 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { User } from 'firebase/auth';
-import { auth, fetchUserEntries, deleteJournalEntry } from './lib/firebase';
+import { auth, fetchUserEntries, deleteJournalEntry, fetchUserReminderSettings, saveUserReminderSettings } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Navbar } from './components/Navbar';
 import { LandingView } from './components/LandingView';
 import { JournalEditor } from './components/JournalEditor';
 import { JournalHistory } from './components/JournalHistory';
+import { EmotionalVault } from './components/EmotionalVault';
+import { ReminderModal } from './components/ReminderModal';
 import { GitaLibraryModal } from './components/GitaLibraryModal';
 import { ThreatSummaryModal } from './components/ThreatSummaryModal';
-import { JournalEntry, PastEntrySummary } from './types';
+import { JournalEntry, PastEntrySummary, ReminderSettings } from './types';
+import { DEFAULT_REMINDER_SETTINGS, calculateStreakStats } from './lib/reminders';
 import { GitaVerse } from './data/gitaVerses';
 import { Scroll } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
-  const [activeView, setActiveView] = useState<'editor' | 'history' | 'library'>('editor');
+  const [activeView, setActiveView] = useState<'editor' | 'history' | 'library' | 'vault'>('editor');
   
   // Data state
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [activeEntry, setActiveEntry] = useState<JournalEntry | null>(null);
   const [loadingEntries, setLoadingEntries] = useState<boolean>(false);
+  const [reminderSettings, setReminderSettings] = useState<ReminderSettings>(() => {
+    const saved = localStorage.getItem('gita_journal_reminders');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return DEFAULT_REMINDER_SETTINGS;
+      }
+    }
+    return DEFAULT_REMINDER_SETTINGS;
+  });
   
   // Modals
   const [showSecurityModal, setShowSecurityModal] = useState<boolean>(false);
   const [showLibraryModal, setShowLibraryModal] = useState<boolean>(false);
+  const [showReminderModal, setShowReminderModal] = useState<boolean>(false);
 
   // Listen to Firebase Auth state
   useEffect(() => {
@@ -34,6 +49,16 @@ export default function App() {
 
       if (currentUser) {
         await loadEntries(currentUser.uid);
+        // Load cloud reminder settings
+        try {
+          const cloudSettings = await fetchUserReminderSettings(currentUser.uid);
+          if (cloudSettings) {
+            setReminderSettings(cloudSettings);
+            localStorage.setItem('gita_journal_reminders', JSON.stringify(cloudSettings));
+          }
+        } catch (err) {
+          console.error('Failed to load user reminder settings:', err);
+        }
       } else {
         setEntries([]);
         setActiveEntry(null);
@@ -87,6 +112,14 @@ export default function App() {
     }
   };
 
+  const handleSaveReminderSettings = async (newSettings: ReminderSettings) => {
+    setReminderSettings(newSettings);
+    localStorage.setItem('gita_journal_reminders', JSON.stringify(newSettings));
+    if (user) {
+      await saveUserReminderSettings(user.uid, newSettings);
+    }
+  };
+
   // Convert past entries into summaries for Pattern Recall and No-Repeat Recency Tracking
   const pastSummaries: PastEntrySummary[] = entries
     .filter((e) => e.id !== activeEntry?.id)
@@ -100,6 +133,8 @@ export default function App() {
       verseId: e.verse?.id,
       verseCitation: e.verse?.citation
     }));
+
+  const streakStats = calculateStreakStats(entries);
 
   const handleSelectVerseForInspiration = (v: GitaVerse) => {
     // Start a new entry with this verse
@@ -152,7 +187,9 @@ export default function App() {
         }}
         onNewEntry={handleNewEntry}
         entriesCount={entries.length}
+        currentStreak={streakStats.currentStreak}
         onOpenSecurity={() => setShowSecurityModal(true)}
+        onOpenReminders={() => setShowReminderModal(true)}
       />
 
       {/* Main Content Area */}
@@ -180,6 +217,14 @@ export default function App() {
                 onNewEntry={handleNewEntry}
               />
             )}
+
+            {activeView === 'vault' && (
+              <EmotionalVault
+                entries={entries}
+                onSelectEntry={handleSelectEntryFromHistory}
+                onNewEntry={handleNewEntry}
+              />
+            )}
           </>
         )}
       </main>
@@ -196,6 +241,12 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-4 text-[11px]">
+            <button
+              onClick={() => setShowReminderModal(true)}
+              className="text-zinc-400 hover:text-amber-300 transition-colors"
+            >
+              Daily Reminders
+            </button>
             <button
               onClick={() => setShowLibraryModal(true)}
               className="text-zinc-400 hover:text-amber-300 transition-colors"
@@ -225,6 +276,18 @@ export default function App() {
         <ThreatSummaryModal onClose={() => setShowSecurityModal(false)} />
       )}
 
+      {/* Daily Reminders Modal */}
+      {showReminderModal && (
+        <ReminderModal
+          isOpen={showReminderModal}
+          onClose={() => setShowReminderModal(false)}
+          entries={entries}
+          settings={reminderSettings}
+          onSaveSettings={handleSaveReminderSettings}
+        />
+      )}
+
     </div>
   );
 }
+

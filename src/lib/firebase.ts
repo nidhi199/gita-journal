@@ -19,15 +19,15 @@ import {
   orderBy 
 } from 'firebase/firestore';
 import firebaseConfigJson from '../../firebase-applet-config.json';
-import { JournalEntry } from '../types';
+import { JournalEntry, ReminderSettings } from '../types';
 
 const firebaseConfig = {
-  projectId: firebaseConfigJson.projectId,
-  appId: firebaseConfigJson.appId,
-  apiKey: firebaseConfigJson.apiKey,
-  authDomain: firebaseConfigJson.authDomain,
-  storageBucket: firebaseConfigJson.storageBucket,
-  messagingSenderId: firebaseConfigJson.messagingSenderId,
+  apiKey: "AIzaSyA1w1_WqSpCJrUl6cR5ZIA2mGxL7gW6HxU",
+  authDomain: "gita-mindfulness.firebaseapp.com",
+  projectId: "gita-mindfulness",
+  storageBucket: "gita-mindfulness.firebasestorage.app",
+  messagingSenderId: "118305566357",
+  appId: "1:118305566357:web:a714885485b9b880b9f59c"
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -98,4 +98,26 @@ export async function deleteJournalEntry(userId: string, entryId: string): Promi
   if (!userId) throw new Error('User must be authenticated to delete entries');
   const entryRef = doc(db, 'users', userId, 'entries', entryId);
   await deleteDoc(entryRef);
+}
+
+export async function saveUserReminderSettings(userId: string, settings: ReminderSettings): Promise<void> {
+  if (!userId) return;
+  const userRef = doc(db, 'users', userId);
+  const data = cleanForFirestore({ reminderSettings: settings });
+  await setDoc(userRef, data, { merge: true });
+}
+
+export async function fetchUserReminderSettings(userId: string): Promise<ReminderSettings | null> {
+  if (!userId) return null;
+  try {
+    const userRef = doc(db, 'users', userId);
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      return data.reminderSettings || null;
+    }
+  } catch (error) {
+    console.warn('Could not retrieve remote reminder settings, using local fallback:', error);
+  }
+  return null;
 }
