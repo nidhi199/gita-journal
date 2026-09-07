@@ -485,6 +485,7 @@ Content: "${content}"`;
   }
 });
 
+
 // Start Server with Vite middleware for dev or static serving for prod
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {

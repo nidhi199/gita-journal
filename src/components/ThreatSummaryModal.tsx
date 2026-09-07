@@ -57,8 +57,8 @@ export const ThreatSummaryModal: React.FC<ThreatSummaryModalProps> = ({ onClose 
                 <tbody className="divide-y divide-zinc-800/60 font-sans text-[11px]">
                   <tr>
                     <td className="p-3 font-medium text-zinc-200">1. Input Surfaces</td>
-                    <td className="p-3 text-zinc-400">Prompt injection, malformed JSON payloads, oversized submissions, location privacy leakage.</td>
-                    <td className="p-3 text-emerald-300/90">Strict body limiters (5mb), input sanitization, explicit user-permission-gated geotagging (never passive), and sanctuary label aliases.</td>
+                    <td className="p-3 text-zinc-400">Prompt injection, malformed JSON payloads, oversized submissions, location privacy, client theme tampering.</td>
+                    <td className="p-3 text-emerald-300/90">Strict body limiters (5mb), input sanitization, permission-gated geotagging, strict theme union validation (<code className="text-amber-300">'dark' | 'light'</code>).</td>
                     <td className="p-3 text-zinc-400">OWASP LLM01 / A03 / Privacy</td>
                   </tr>
                   <tr>

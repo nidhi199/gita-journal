@@ -1,7 +1,8 @@
 import React from 'react';
-import { BookOpen, PenLine, History, LogOut, ShieldCheck, Scroll, Heart, Bell, Flame } from 'lucide-react';
+import { BookOpen, PenLine, History, LogOut, ShieldCheck, Scroll, Heart, Bell, Flame, Sparkles, HelpCircle } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { logOut } from '../lib/firebase';
+import { ThemeToggle } from './ThemeToggle';
 
 interface NavbarProps {
   user: User | null;
@@ -12,6 +13,11 @@ interface NavbarProps {
   currentStreak?: number;
   onOpenSecurity: () => void;
   onOpenReminders: () => void;
+  onSignOut?: () => void;
+  isDemoMode?: boolean;
+  onExitDemo?: () => void;
+  onOpenWalkthrough?: () => void;
+  onEnterDemo?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -22,7 +28,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   entriesCount,
   currentStreak = 0,
   onOpenSecurity,
-  onOpenReminders
+  onOpenReminders,
+  onSignOut,
+  isDemoMode = false,
+  onExitDemo,
+  onOpenWalkthrough,
+  onEnterDemo
 }) => {
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-800/80 bg-[#0e0e11]/90 backdrop-blur-md">
@@ -122,6 +133,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
+          {/* How It Works / Tour Button */}
+          {onOpenWalkthrough && (
+            <button
+              id="nav-how-it-works-btn"
+              onClick={onOpenWalkthrough}
+              title="How Gita Journal Works (Interactive Guide)"
+              className="flex items-center space-x-1 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 py-1 text-xs text-zinc-400 hover:border-amber-500/40 hover:text-amber-300 transition-colors cursor-pointer"
+            >
+              <HelpCircle className="h-3.5 w-3.5 text-amber-400" />
+              <span className="hidden md:inline">Tour</span>
+            </button>
+          )}
+
           <button
             id="security-threat-model-btn"
             onClick={onOpenSecurity}
@@ -132,7 +156,25 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden lg:inline">Security</span>
           </button>
 
-          {user ? (
+          {/* Theme Switcher Button */}
+          <ThemeToggle />
+
+          {isDemoMode ? (
+            <div className="flex items-center space-x-2 pl-1">
+              <span className="hidden sm:inline-flex items-center space-x-1 rounded-full bg-amber-950/60 border border-amber-500/40 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+                <Sparkles className="h-3 w-3 text-amber-400" />
+                <span>Demo Mode</span>
+              </span>
+              <button
+                id="nav-exit-demo-btn"
+                onClick={onExitDemo}
+                title="Exit Demo Mode"
+                className="rounded-md border border-amber-500/40 bg-zinc-900 px-2.5 py-1 text-xs font-medium text-amber-300 hover:bg-amber-950/40 transition-colors cursor-pointer"
+              >
+                Exit Demo
+              </button>
+            </div>
+          ) : user ? (
             <div className="flex items-center space-x-2 pl-1">
               <div className="hidden flex-col text-right xl:flex">
                 <span className="text-xs font-medium text-zinc-200 max-w-[120px] truncate">
@@ -159,7 +201,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 id="sign-out-button"
                 onClick={async () => {
-                  await logOut();
+                  if (onSignOut) {
+                    onSignOut();
+                  } else {
+                    await logOut();
+                  }
                 }}
                 title="Sign out of journal"
                 className="rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
@@ -168,8 +214,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             </div>
           ) : (
-            <div className="text-xs text-zinc-400">
-              Private Journaling
+            <div className="flex items-center space-x-2">
+              {onEnterDemo && (
+                <button
+                  id="nav-demo-btn"
+                  onClick={onEnterDemo}
+                  title="Explore Interactive Demo Sandbox"
+                  className="inline-flex items-center space-x-1.5 rounded-md border border-amber-500/40 bg-amber-950/30 px-2.5 py-1 text-xs font-medium text-amber-300 hover:bg-amber-900/40 hover:text-amber-200 transition-colors cursor-pointer"
+                >
+                  <Sparkles className="h-3 w-3 text-amber-400" />
+                  <span>Demo</span>
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -40,6 +40,7 @@ import { GeotagModal } from './GeotagModal';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { saveJournalEntry } from '../lib/firebase';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
+import { SAMPLE_DEMO_PROMPTS } from '../data/demoEntries';
 
 interface JournalEditorProps {
   userId: string;
@@ -48,6 +49,7 @@ interface JournalEditorProps {
   onSaveSuccess: (entry: JournalEntry) => void;
   onViewHistory: () => void;
   onDeleteEntry?: (entryId: string) => Promise<void>;
+  isDemoMode?: boolean;
 }
 
 export const JournalEditor: React.FC<JournalEditorProps> = ({
@@ -56,7 +58,8 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   pastSummaries,
   onSaveSuccess,
   onViewHistory,
-  onDeleteEntry
+  onDeleteEntry,
+  isDemoMode = false
 }) => {
   const [entryId, setEntryId] = useState<string>(initialEntry?.id || `entry-${Date.now()}`);
   const [title, setTitle] = useState<string>(initialEntry?.title || '');
@@ -678,6 +681,33 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                 >
                   Done Speaking
                 </button>
+              </div>
+            )}
+
+            {/* Quick Demo Prompts (shown in Demo Mode or when blank) */}
+            {(isDemoMode || userId === 'demo-user') && !content.trim() && (
+              <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 text-xs">
+                <div className="flex items-center space-x-1.5 font-medium text-amber-300 mb-2">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Interactive Demo: Click any sample dilemma to test Socratic reflection</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {SAMPLE_DEMO_PROMPTS.map((p, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setTitle(p.title);
+                        setContent(p.content);
+                        setTheme(p.theme);
+                      }}
+                      className="rounded-md border border-amber-500/30 bg-zinc-900/90 px-2.5 py-1.5 text-xs text-zinc-200 hover:border-amber-400 hover:bg-amber-950/40 hover:text-amber-200 transition-all text-left cursor-pointer"
+                    >
+                      <span className="font-medium text-amber-300 mr-1">✦</span>
+                      <span>{p.title}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
